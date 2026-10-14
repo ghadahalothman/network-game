@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build the Network</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:20px 12px;min-height:100vh;background:linear-gradient(135deg,#06172f,#064675,#087e9c);color:white;font-family:Arial,sans-serif;text-align:center}
+main{max-width:800px;margin:auto}
+h1{color:#9bfff4;font-size:clamp(27px,5vw,43px)}
+.card{background:rgba(15,91,145,.78);border:1px solid #55d5e5;border-radius:24px;padding:22px 16px;margin:15px auto;box-shadow:0 8px 25px #00152a55}
+h2{color:#a4fff7}
+button{padding:13px 16px;margin:5px;border:1px solid #64d7e5;border-radius:12px;background:#123d62;color:white;font-size:16px;cursor:pointer;touch-action:manipulation}
+button:hover{background:#176c91}
+button:disabled{opacity:.5}
+.primary{width:100%;margin-top:18px;padding:16px;background:#75f2e9;color:#07334e;border:0;font-weight:bold}
+.devices,.answers,.stats{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:20px 0}
+.device{min-width:110px;padding:15px;background:#103b60;border:1px solid #65d5e5;border-radius:15px}
+.device span{display:block;font-size:30px;margin-bottom:8px}
+.stat{background:#0b3155;padding:12px 16px;border-radius:12px}
+#networkCanvas{position:relative;width:100%;height:360px;margin:22px auto;background:#082744;border:1px solid #4caec9;border-radius:18px;overflow:hidden;direction:ltr;touch-action:none}
+#networkLines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.connection-line{stroke:#75fff0;stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 4px #75fff0)}
+.node{position:absolute;z-index:2;width:88px;min-width:0;padding:10px 3px;margin:0;transform:translate(-50%,-50%);background:#12496b;border:2px solid #73e8f0;border-radius:12px;font-size:13px;user-select:none;touch-action:none;cursor:grab}
+.node span{display:block;font-size:25px;margin-bottom:5px}
+.node.selected{border-color:#ffe58a;background:#23628a;box-shadow:0 0 15px #ffe58a66}
+.node.switch{width:112px;background:#087f91;border-color:#8cfff3}
+.node.dragging{cursor:grabbing}
+#connections p{padding:10px;border-radius:9px;background:#10456b}
+[hidden]{display:none!important}
+footer{margin-top:24px;color:#c9faff;font-size:13px;font-weight:bold}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>BUILD THE NETWORK</h1>
+<p>ابني شبكتك، اختاري الأجهزة الصحيحة، واجمعي النقاط!</p>
+</header>
+
+<section class="card" id="start">
+<h2>🎮 مرحبًا بك في تحدي الشبكات</h2>
+<p>أجيبي عن خمسة أسئلة، ثم ابنِي شبكتك بنفسك!</p>
+<div class="devices">
+<div class="device"><span>💻</span>Computer</div>
+<div class="device"><span>🔀</span>Switch</div>
+<div class="device"><span>📡</span>Router</div>
+</div>
+<button class="primary" onclick="startGame()">ابدئي اللعب ←</button>
+</section>
+
+<section class="card" id="game" hidden>
+<div class="stats">
+<div class="stat">السؤال <strong id="level">1 / 5</strong></div>
+<div class="stat">النقاط <strong id="score">0</strong></div>
+</div>
+<h2 id="question"></h2>
+<div class="answers" id="answerOptions"></div>
+<p id="feedback" aria-live="polite"></p>
+<button class="primary" id="next" onclick="nextQuestion()" hidden>السؤال التالي ←</button>
+</section>
+
+<section class="card" id="build" hidden>
+<h2>🌐 BUILD THE NETWORK</h2>
+<p>اسحبي أجهزة الكمبيوتر لتغيير أماكنها، ثم اختاري الكمبيوتر واضغطي السويتش لتوصيلهما.</p>
+<div class="stats">
+<div class="stat">التوصيلات <strong id="linkCount">0 / 3</strong></div>
+<div class="stat">نقاط البناء <strong id="buildScore">0</strong></div>
+</div>
+<div id="networkCanvas">
+<svg id="networkLines">
+<line id="line1" class="connection-line" visibility="hidden"/>
+<line id="line2" class="connection-line" visibility="hidden"/>
+<line id="line3" class="connection-line" visibility="hidden"/>
+</svg>
+<button class="node" id="PC1" style="left:16%;top:22%" onclick="selectPC('PC1')"><span>💻</span>PC1</button>
+<button class="node" id="PC2" style="left:50%;top:22%" onclick="selectPC('PC2')"><span>💻</span>PC2</button>
+<button class="node" id="PC3" style="left:84%;top:22%" onclick="selectPC('PC3')"><span>💻</span>PC3</button>
+<button class="node switch" id="Switch" style="left:50%;top:76%" onclick="connectSwitch()"><span>🔀</span>Switch</button>
+</div>
+<p id="instruction">اختاري جهاز كمبيوتر للبدء.</p>
+<p id="buildFeedback" aria-live="polite">اضغطي على الكمبيوتر الذي تريدين توصيله.</p>
+<div id="connections"></div>
+<button class="primary" id="finishBuild" onclick="finishBuild()" hidden>إنهاء بناء الشبكة ←</button>
+</section>
+
+<section class="card" id="result" hidden>
+<h2>🏆 انتهى التحدي!</h2>
+<h3 id="finalScore"></h3>
+<p id="comment"></p>
+<button class="primary" onclick="restartGame()">🔄 إعادة اللعب</button>
+</section>
+<footer>BUILD THE NETWORK · NETWORKING GAME</footer>
+</main>
+
+<script>
+const questions=[
+{q:"ما الجهاز الذي يربط عدة أجهزة داخل الشبكة المحلية؟",options:["Switch","Keyboard","Printer"],answer:0},
+{q:"ما الجهاز الذي يربط الشبكات المختلفة ببعضها؟",options:["Mouse","Router","Monitor"],answer:1},
+{q:"ما الجهاز الذي يستخدمه المستخدم لتصفح الإنترنت؟",options:["Computer","Switch","Cable"],answer:0},
+{q:"ما الاسم الذي يطلق على الشبكة المحلية؟",options:["HTTP","LAN","HTML"],answer:1},
+{q:"أي مما يلي يستخدم لتوصيل الأجهزة سلكيًا؟",options:["Ethernet cable","Speaker","Webcam"],answer:0}
+];
+
+let index=0;
+let score=0;
+let answered=false;
+let selectedPC=null;
+let connectedPCs=[];
+let buildPoints=0;
+
+function showPage(id){
+["start","game","build","result"].forEach(page=>{
+document.getElementById(page).hidden=page!==id;
+});
+}
+
+function startGame(){
+index=0;
+score=0;
+document.getElementById("score").textContent=score;
+showPage("game");
+showQuestion();
+}
+
+function showQuestion(){
+answered=false;
+const q=questions[index];
+document.getElementById("level").textContent=(index+1)+" / "+questions.length;
+document.getElementById("question").textContent=q.q;
+document.getElementById("feedback").textContent="";
+const next=document.getElementById("next");
+next.hidden=true;
+next.textContent=index===4?"الانتقال إلى بناء الشبكة ←":"السؤال التالي ←";
+const box=document.getElementById("answerOptions");
+box.innerHTML="";
+q.options.forEach((option,i)=>{
+const button=document.createElement("button");
+button.textContent=option;
+button.onclick=()=>answerQuestion(i);
+box.appendChild(button);
+});
+}
+
+function answerQuestion(choice){
+if(answered)return;
+answered=true;
+const q=questions[index];
+document.querySelectorAll("#answerOptions button").forEach(button=>button.disabled=true);
+if(choice===q.answer){
+score+=10;
+document.getElementById("feedback").textContent="✅ إجابة صحيحة! حصلتِ على 10 نقاط.";
+}else{
+document.getElementById("feedback").textContent="❌ الإجابة الصحيحة: "+q.options[q.answer];
+}
+document.getElementById("score").textContent=score;
+document.getElementById("next").hidden=false;
+}
+
+function nextQuestion(){
+if(!answered)return;
+index++;
+if(index<questions.length){
+showQuestion();
+}else{
+startBuild();
+}
+}
+
+function startBuild(){
+selectedPC=null;
+connectedPCs=[];
+buildPoints=0;
+document.getElementById("linkCount").textContent="0 / 3";
+document.getElementById("buildScore").textContent="0";
+document.getElementById("connections").innerHTML="";
+document.getElementById("instruction").textContent="اختاري جهاز كمبيوتر للبدء.";
+document.getElementById("buildFeedback").textContent="اضغطي على الكمبيوتر الذي تريدين توصيله.";
+document.getElementById("finishBuild").hidden=true;
+
+["PC1","PC2","PC3"].forEach((id,i)=>{
+const node=document.getElementById(id);
+node.disabled=false;
+node.classList.remove("selected");
+node.style.left=[16,50,84][i]+"%";
+node.style.top="22%";
+document.getElementById("line"+(i+1)).setAttribute("visibility","hidden");
+});
+
+const sw=document.getElementById("Switch");
+sw.style.left="50%";
+sw.style.top="76%";
+updateLines();
+showPage("build");
+}
+
+function selectPC(id){
+if(connectedPCs.includes(id)){
+document.getElementById("buildFeedback").textContent="هذا الكمبيوتر متصل بالفعل!";
+return;
+}
+selectedPC=id;
+["PC1","PC2","PC3"].forEach(pc=>{
+document.getElementById(pc).classList.toggle("selected",pc===id);
+});
+document.getElementById("instruction").
+textContent="تم اختيار "+id+". اضغطي على Switch لتوصيله.";
+document.getElementById("buildFeedback").textContent="اضغطي على السويتش لإكمال الاتصال.";
+}
+
+function connectSwitch(){
+if(!selectedPC){
+document.getElementById("buildFeedback").textContent="اختاري كمبيوتر أولًا!";
+return;
+}
+const id=selectedPC;
+const n=Number(id.slice(2));
+if(connectedPCs.includes(id))return;
+connectedPCs.push(id);
+buildPoints+=10;
+document.getElementById("line"+n).setAttribute("visibility","visible");
+document.getElementById(id).classList.remove("selected");
+document.getElementById(id).disabled=true;
+
+const item=document.createElement("p");
+item.textContent="✅ "+id+" متصل بـ Switch";
+document.getElementById("connections").appendChild(item);
+document.getElementById("linkCount").textContent=connectedPCs.length+" / 3";
+document.getElementById("buildScore").textContent=buildPoints;
+selectedPC=null;
+
+document.getElementById("instruction").textContent=connectedPCs.length===3?"اكتملت الشبكة بنجاح!":"اختاري الكمبيوتر التالي.";
+document.getElementById("buildFeedback").textContent="رائع! تم الاتصال بنجاح.";
+
+if(connectedPCs.length===3){
+document.getElementById("finishBuild").hidden=false;
+}
+}
+
+function updateLines(){
+const canvas=document.getElementById("networkCanvas");
+const rect=canvas.getBoundingClientRect();
+const svg=document.getElementById("networkLines");
+svg.setAttribute("viewBox","0 0 "+rect.width+" "+rect.height);
+["PC1","PC2","PC3"].forEach((id,i)=>{
+const node=document.getElementById(id);
+const sw=document.getElementById("Switch");
+const line=document.getElementById("line"+(i+1));
+line.setAttribute("x1",node.offsetLeft);
+line.setAttribute("y1",node.offsetTop);
+line.setAttribute("x2",sw.offsetLeft);
+line.setAttribute("y2",sw.offsetTop);
+});
+}
+
+document.querySelectorAll("#networkCanvas .node").forEach(node=>{
+let dragging=false;
+let startX=0,startY=0,initialLeft=0,initialTop=0;
+
+node.addEventListener("pointerdown",event=>{
+if(node.id==="Switch"||event.button!==0)return;
+dragging=true;
+startX=event.clientX;
+startY=event.clientY;
+initialLeft=node.offsetLeft;
+initialTop=node.offsetTop;
+node.classList.add("dragging");
+node.setPointerCapture(event.pointerId);
+event.preventDefault();
+});
+
+node.addEventListener("pointermove",event=>{
+if(!dragging)return;
+const dx=event.clientX-startX;
+const dy=event.clientY-startY;
+const canvas=document.getElementById("networkCanvas");
+const halfW=node.offsetWidth/2;
+const halfH=node.offsetHeight/2;
+const x=Math.max(halfW,Math.min(canvas.clientWidth-halfW,initialLeft+dx));
+const y=Math.max(halfH,Math.min(canvas.clientHeight-halfH,initialTop+dy));
+node.style.left=x+"px";
+node.style.top=y+"px";
+updateLines();
+});
+
+function stopDragging(){
+dragging=false;
+node.classList.remove("dragging");
+updateLines();
+}
+node.addEventListener("pointerup",stopDragging);
+node.addEventListener("pointercancel",stopDragging);
+});
+
+window.addEventListener("resize",updateLines);
+
+function finishBuild(){
+if(connectedPCs.length!==3)return;
+document.getElementById("finalScore").textContent="نتيجتك النهائية: "+(score+buildPoints)+" من 80 نقطة";
+document.getElementById("comment").textContent="أحسنتِ! أكملتِ الأسئلة وبنيتِ شبكتك بنجاح 🌐";
+showPage("result");
+}
+
+function restartGame(){
+startGame();
+}
+</script>
+</body>
+</html>
